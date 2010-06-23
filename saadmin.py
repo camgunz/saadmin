@@ -336,46 +336,120 @@ def unc(s):
     return unicode(s)
 
 class ColumnTypes(object):
-    string_types = [type(sa.String())]
-    unicode_types = [type(sa.Unicode())]
-    text_types = [type(sa.Text())]
-    unicode_text_types = [type(sa.UnicodeText())]
-    integer_types = [type(sa.Integer()), type(sa.SmallInteger())]
-    numeric_types = [type(sa.Numeric())]
-    float_types = [type(sa.Float())]
-    date_time_types = [type(sa.DateTime())]
-    date_types = [type(sa.Date())]
-    time_types = [type(sa.Time())]
-    interval_types = [type(sa.Interval())]
-    boolean_types = [type(sa.Boolean())]
-    binary_types = [type(sa.Binary())]
+
+    binary_types = [
+        sa.types.Binary,
+        sa.types.LargeBinary,
+        sa.types.BINARY,
+        sa.types.BLOB,
+        sa.types.CLOB,
+        sa.types.VARBINARY
+    ]
+
+    boolean_types = [
+        sa.types.Boolean,
+        sa.types.BOOLEAN,
+        sa.types.BOOLEANTYPE
+    ]
+
+    date_types = [
+        sa.types.Date,
+        sa.types.DATE
+    ]
+
+    time_types = [
+        sa.types.Time,
+        sa.types.TIME
+    ]
+
+    date_time_types = [
+        sa.types.DateTime,
+        sa.types.DATETIME,
+        sa.types.TIMESTAMP
+    ]
+
+    integer_types = [
+        sa.types.Integer,
+        sa.types.BigInteger,
+        sa.types.SmallInteger,
+        sa.types.INT,
+        sa.types.INTEGER,
+        sa.types.BIGINT,
+        sa.types.SMALLINT
+    ]
+
+    float_types = [
+        sa.types.Float,
+        sa.types.FLOAT
+    ]
+
+    numeric_types = [
+        sa.types.Numeric,
+        sa.types.DECIMAL,
+        sa.types.NUMERIC
+    ]
+
+    null_types = [
+        sa.types.NULLTYPE,
+        sa.types.NoneType,
+        sa.types.NullType
+    ]
+
+    string_types = [
+        sa.types.String,
+        sa.types.NCHAR,
+        sa.types.NVARCHAR,
+        sa.types.VARCHAR
+    ]
+
+    text_types = [
+        sa.types.Text,
+        sa.types.TEXT
+    ]
+
+    unicode_types = [
+        sa.types.Unicode,
+    ]
+
+    unicode_text_types = [
+        sa.types.UnicodeText
+    ]
+
+    interval_types = [
+        sa.types.Interval
+    ]
+
+    enumeration_types = [
+        sa.types.Enum
+    ]
+
+    mutable_types = [
+    ]
+
+    bit_types = [
+    ]
+
+    misc_types = [
+    ]
 
     @staticmethod
     def add_postgres_column_types():
-        ColumnTypes.string_types.append(type(sa.databases.postgres.PGString()))
-        ColumnTypes.text_types.append(type(sa.databases.postgres.PGText()))
-        ColumnTypes.integer_types.extend([
-            type(sa.databases.postgres.PGInteger()),
-            type(sa.databases.postgres.PGBigInteger()),
-            type(sa.databases.postgres.PGSmallInteger())
+        from sqlalchemy.dialects import postgresql as pg
+        ColumnTypes.bit_types.append(pg.base.BIT)
+        ColumnTypes.binary_types.append(pg.base.BYTEA)
+        ColumnTypes.enumeration_types.append(pg.base.ENUM)
+        ColumnTypes.interval_types.append(pg.base.INTERVAL)
+        ColumnTypes.mutable_types.append(pg.base.ARRAY)
+        ColumnTypes.misc_types.extend([
+            pg.base.CIDR,
+            pg.base.INET,
+            pg.base.MACADDR,
+            pg.base.UUID
         ])
-        ColumnTypes.numeric_types.extend([
-            type(sa.databases.postgres.PGNumeric()),
-            type(sa.databases.postgres.PGDoublePrecision())
+        ColumnTypes.float_types.extend([
+            pg.base.DOUBLE_PRECISION,
+            pg.base.REAL
         ])
-        ColumnTypes.float_types.append(type(sa.databases.postgres.PGFloat()))
-        ColumnTypes.date_time_types.append(
-            type(sa.databases.postgres.PGDateTime())
-        )
-        ColumnTypes.date_types.append(type(sa.databases.postgres.PGDate()))
-        ColumnTypes.time_types.append(type(sa.databases.postgres.PGTime()))
-        ColumnTypes.interval_types.append(
-            type(sa.databases.postgres.PGInterval())
-        )
-        ColumnTypes.boolean_types.append(
-            type(sa.databases.postgres.PGBoolean())
-        )
-        ColumnTypes.binary_types.append(type(sa.databases.postgres.PGBinary()))
 
 class Attribute(object):
 
@@ -644,8 +718,8 @@ def activate(table, model):
             elif column_type in ColumnTypes.binary_types:
                 kwargs['field_type'] = 'file'
             else:
-                es = u'Unsupported column type %s'
-                raise Exception(es % (column.type))
+                es = u'Unsupported column type %r, table %s, column %s'
+                raise Exception(es % (column.type, table, column))
         if column.name in model.Admin:
             cp = model.Admin[column.name]
             if 'get_choices' in cp and 'max_length' in cp:
@@ -669,4 +743,7 @@ def activate_all():
         model.Admin.model = model
     for table, model in t_and_m:
         activate(table, model)
+
+if __name__ == "__main__":
+    ColumnTypes.add_postgres_column_types()
 
