@@ -255,33 +255,85 @@ def labelize(n):
             out = out[:-1]
         return out
 
-def iso_datetime(s):
-    try:
-        return datetime.datetime.strptime('%Y-%m-%s %H:%M:%S')
-    except ValueError:
-        raise ValueError(u'Timestamps must be in "%Y-%m-%d %H:%M:%S" format')
-
 def iso_date(s):
+    if s in (u'', ''):
+        return None
     try:
-        dt = datetime.datetime.strptime('%Y-%m-%s')
+        dt = datetime.datetime.strptime(s, '%Y-%m-%d')
         return datetime.date(dt.year, dt.month, dt.day)
     except ValueError:
         raise ValueError(u'Dates must be in "%Y-%m-%d" format')
 
 def iso_time(s):
+    if s in (u'', ''):
+        return None
+    formats = (
+        '%H:%M:%S',
+        '%H:%M:%S.%f'
+    )
+    if '.' in s:
+        dt_format = formats[1]
+    else:
+        dt_format = formats[0]
     try:
-        h, m, s_and_ms = s.split(u':')
-        if u'.' in s_and_ms:
-            s, ms = s_and_ms.split(u'.')
-        else:
-            s, ms = (s_and_ms, '0')
-        h, m, s, ms = [int(x) for x in [h, m, s, ms]]
-        return datetime.time(h, m, s, ms)
+        return datetime.datetime.strptime(s, dt_format)
     except ValueError:
-        raise ValueError(u'Times must be in "%Y-%m-%d" format')
+        raise ValueError(u'Times must be in either "' + \
+            u'" or "'.join(formats) + \
+            u'" format'
+        )
+
+def iso_datetime(s):
+    if s in (u'', ''):
+        return None
+    formats = (
+        '%Y-%m-%s %H:%M:%S',
+        '%Y-%m-%s %H:%M:%S.%f'
+    )
+    if '.' in s:
+        dt_format = formats[1]
+    else:
+        dt_format = formats[0]
+    try:
+        return datetime.datetime.strptime(s, dt_format)
+    except ValueError:
+        raise ValueError(u'Timestamps must be in either "' + \
+            u'" or "'.join(formats) + \
+            u'" format'
+        )
+
+###
+# [CG] These should be rolled into ColumnTypes and explicitly associated with=
+#      the types they should parse.  I'll do that later I think.
+###
 
 def formbool(s):
     return s == 'on'
+
+def integer(s):
+    if s in (u'', ''):
+        return None
+    return int(s)
+
+def dec(s):
+    if s in (u'', ''):
+        return None
+    return decimal.Decimal(s)
+
+def flt(s):
+    if s in (u'', ''):
+        return None
+    return float(s)
+
+def string(s):
+    if s in (u'', ''):
+        return None
+    return str(s)
+
+def unc(s):
+    if s in (u'', ''):
+        return None
+    return unicode(s)
 
 class ColumnTypes(object):
     string_types = [type(sa.String())]
@@ -307,9 +359,10 @@ class ColumnTypes(object):
             type(sa.databases.postgres.PGBigInteger()),
             type(sa.databases.postgres.PGSmallInteger())
         ])
-        ColumnTypes.numeric_types.append(
-            type(sa.databases.postgres.PGNumeric())
-        )
+        ColumnTypes.numeric_types.extend([
+            type(sa.databases.postgres.PGNumeric()),
+            type(sa.databases.postgres.PGDoublePrecision())
+        ])
         ColumnTypes.float_types.append(type(sa.databases.postgres.PGFloat()))
         ColumnTypes.date_time_types.append(
             type(sa.databases.postgres.PGDateTime())
@@ -344,6 +397,7 @@ class Attribute(object):
         self._get_choices = \
                 make_im(self, kwargs.get('get_choices', lambda self_: list()))
         self.parser = make_im(self, kwargs.get('parser', lambda self_, x: x))
+        self.kwargs = kwargs
         self.field_type = kwargs['field_type']
         self.blank_value = kwargs.get('blank_value', None)
         self.max_length = kwargs.get('max_length', None)
@@ -366,8 +420,34 @@ class Attribute(object):
         
     def set_entry_value(self, entry, new_values):
         if self.attribute_name in new_values:
-            entry.__setattr__(self.parser(new_values[self.attribute_name]))
-        return entry
+            new_value = new_values[self.attribute_name]
+            try:
+                if 'parser' in self.kwargs:
+                    new_value = self.kwargs['parser'](new_value)
+            except TypeError, e:
+                es = str(e) + '; got %s, type %s - parser is %r' % (
+                    new_value,
+                    type(new_value),
+                    self.kwargs['parser']
+                )
+                raise Exception(es)
+            if new_value in (u'', ''):
+                if 'parser' in self.kwargs:
+                    raise Exception('Got blank value for %s, parser is %r' % (
+                        self.name, self.kwargs['parser']
+                    ))
+                else:
+                    raise Exception('Got blank value for %s, no parser' % (
+                        self.name
+                    ))
+            try:
+                entry.__setattr__(self.name, new_value)
+                return entry
+            except TypeError, e:
+                es = str(e) + '; got %s, type %s - parser is %r' % (
+                new_value, type(new_value), self.kwargs['parser']
+            )
+            raise Exception(es)
 
 class ModelAdmin(dict):
 
@@ -522,27 +602,27 @@ def activate(table, model):
             column_type = type(column.type)
             if column_type in ColumnTypes.string_types:
                 kwargs['field_type'] = 'text'
-                kwargs['parser'] = str
+                kwargs['parser'] = string
                 kwargs['max_length'] = column.type.length
             elif column_type in ColumnTypes.unicode_types:
                 kwargs['field_type'] = 'text'
-                kwargs['parser'] = unicode
+                kwargs['parser'] = unc
                 kwargs['max_length'] = column.type.length
             elif column_type in ColumnTypes.text_types:
                 kwargs['field_type'] = 'textfield'
-                kwargs['parser'] = str
+                kwargs['parser'] = string
             elif column_type in ColumnTypes.unicode_text_types:
                 kwargs['field_type'] = 'textfield'
-                kwargs['parser'] = unicode
+                kwargs['parser'] = unc
             elif column_type in ColumnTypes.integer_types:
                 kwargs['field_type'] = 'text'
-                kwargs['parser'] = int
+                kwargs['parser'] = integer
             elif column_type in ColumnTypes.numeric_types:
                 kwargs['field_type'] = 'text'
-                kwargs['parser'] = decimal.Decimal
+                kwargs['parser'] = dec
             elif column_type in ColumnTypes.float_types:
                 kwargs['field_type'] = 'text'
-                kwargs['parser'] = float
+                kwargs['parser'] = flt
             elif column_type in ColumnTypes.date_time_types:
                 kwargs['field_type'] = 'datetime'
                 kwargs['max_length'] = 19
