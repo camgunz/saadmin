@@ -287,8 +287,8 @@ def iso_datetime(s):
     if s in (u'', ''):
         return None
     formats = (
-        '%Y-%m-%s %H:%M:%S',
-        '%Y-%m-%s %H:%M:%S.%f'
+        '%Y-%m-%d %H:%M:%S',
+        '%Y-%m-%d %H:%M:%S.%f'
     )
     if '.' in s:
         dt_format = formats[1]
