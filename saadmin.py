@@ -625,9 +625,12 @@ class ModelAdmin(dict):
         out = self._get_choices()
         return out
 
-    def new_entry(self):
+    def new_entry(self, new_values=None):
         entry = self.model()
-        self.session.add()
+        if new_values is not None:
+            for x in self.attributes:
+                x.set_entry_value(entry, new_values)
+        self.session.add(entry)
         self.session.commit()
         return entry
 
