@@ -307,6 +307,11 @@ def iso_datetime(s):
 #      the types they should parse.  I'll do that later I think.
 ###
 
+def default_parser(s):
+    if s in (u'', ''):
+        return None
+    return s
+
 def formbool(s):
     return s == 'on'
 
@@ -470,7 +475,8 @@ class Attribute(object):
             self._get_label = self.__default_get_label
         self._get_choices = \
                 make_im(self, kwargs.get('get_choices', lambda self_: list()))
-        self.parser = make_im(self, kwargs.get('parser', lambda self_, x: x))
+        if not 'parser' in kwargs:
+            kwargs['parser'] = default_parser
         self.kwargs = kwargs
         self.field_type = kwargs['field_type']
         self.blank_value = kwargs.get('blank_value', None)
@@ -496,8 +502,7 @@ class Attribute(object):
         if self.attribute_name in new_values:
             new_value = new_values[self.attribute_name]
             try:
-                if 'parser' in self.kwargs:
-                    new_value = self.kwargs['parser'](new_value)
+                new_value = self.kwargs['parser'](new_value)
             except TypeError, e:
                 es = str(e) + '; got %s, type %s - parser is %r' % (
                     new_value,
@@ -519,8 +524,8 @@ class Attribute(object):
                 return entry
             except TypeError, e:
                 es = str(e) + '; got %s, type %s - parser is %r' % (
-                new_value, type(new_value), self.kwargs['parser']
-            )
+                    new_value, type(new_value), self.kwargs['parser']
+                )
             raise Exception(es)
 
 class ModelAdmin(dict):
